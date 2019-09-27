@@ -133,7 +133,7 @@ public class ThumbnailServiceTest extends BaseWebScriptTest
     public void testCreateThumbnail() throws Exception
     {
         // Check for pdfToSWF transformation before doing test
-        if (this.contentService.getTransformer(MimetypeMap.MIMETYPE_PDF, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
+        if (this.contentService.getTransformer(null, MimetypeMap.MIMETYPE_PDF, -1, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
         {
             String url = "/api/node/" + pdfNode.getStoreRef().getProtocol() + "/" + pdfNode.getStoreRef().getIdentifier() + "/" + pdfNode.getId() + "/content/thumbnails";
             
@@ -201,7 +201,7 @@ public class ThumbnailServiceTest extends BaseWebScriptTest
         this.transactionService.setAllowWrite(false);
         
         // do pdfToSWF transformation in read-only
-        if (this.contentService.getTransformer(MimetypeMap.MIMETYPE_PDF, MimetypeMap.MIMETYPE_FLASH) != null)
+        if (this.contentService.getTransformer(null, MimetypeMap.MIMETYPE_PDF, -1, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
         {
             // in share creation of thumbnail for webpreview is forced
             String url = "/api/node/" + pdfNode.getStoreRef().getProtocol() + "/" + pdfNode.getStoreRef().getIdentifier() + "/" + pdfNode.getId() + "/content/thumbnails/webpreview?c=force";
@@ -249,7 +249,7 @@ public class ThumbnailServiceTest extends BaseWebScriptTest
     public void testThumbnailDefinitions() throws Exception
     {
         // Check for pdfToSWF transformation before doing test
-        if (this.contentService.getTransformer(MimetypeMap.MIMETYPE_PDF, MimetypeMap.MIMETYPE_FLASH) != null)
+        if (this.contentService.getTransformer(null, MimetypeMap.MIMETYPE_PDF, -1, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
         {
             String url = "/api/node/" + pdfNode.getStoreRef().getProtocol() + "/" + pdfNode.getStoreRef().getIdentifier() + "/" + pdfNode.getId() + "/content/thumbnaildefinitions";
             Response response = sendRequest(new GetRequest(url), 200);
@@ -300,7 +300,7 @@ public class ThumbnailServiceTest extends BaseWebScriptTest
     public void testCreateAsyncThumbnail() throws Exception
     {
         // Check for pdfToSWF transformation before doing test
-        if (this.contentService.getTransformer(MimetypeMap.MIMETYPE_PDF, MimetypeMap.MIMETYPE_FLASH) != null)
+        if (this.contentService.getTransformer(null, MimetypeMap.MIMETYPE_PDF, -1, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
         {
             String url = "/api/node/" + pdfNode.getStoreRef().getProtocol() + "/" + pdfNode.getStoreRef().getIdentifier() + "/" + pdfNode.getId() + "/content/thumbnails?as=true";
             
@@ -358,7 +358,7 @@ public class ThumbnailServiceTest extends BaseWebScriptTest
     public void testPlaceHolder()
         throws Exception
     {
-        if (this.contentService.getTransformer(MimetypeMap.MIMETYPE_PDF, MimetypeMap.MIMETYPE_FLASH) != null)
+        if (this.contentService.getTransformer(null, MimetypeMap.MIMETYPE_PDF, -1, MimetypeMap.MIMETYPE_FLASH, new TransformationOptions()) != null)
         {
             // Check that there is no place holder set for webpreview
             sendRequest(new GetRequest(getThumbnailsURL(pdfNode) + "/webpreview"), 404);
