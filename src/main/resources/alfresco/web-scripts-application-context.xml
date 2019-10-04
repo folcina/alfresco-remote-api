@@ -1236,7 +1236,6 @@
       <property name="contentService" ref="contentService"/>
       <property name="nodeService" ref="nodeService"/>
       <property name="nodeDAO" ref="nodeDAO"/>
-      <property name="transformerDebug" ref="transformerDebug" />
       <property name="delegate" ref="webscript.content.streamer" />
    </bean>
 
