@@ -55,7 +55,7 @@ import java.util.Map;
 
 /**
  * A web service to return the text content (transformed if required) of a node's
- * content property.
+ * content property. 
  * 
  * @since 4.0
  */
