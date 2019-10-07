@@ -25,34 +25,6 @@
  */
 package org.alfresco.rest.api.tests;
 
-import static org.alfresco.rest.api.tests.util.RestApiUtil.parsePaging;
-import static org.alfresco.rest.api.tests.util.RestApiUtil.toJsonAsStringNonNull;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.RandomAccessFile;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
 import org.alfresco.repo.content.ContentLimitProvider.SimpleFixedLimitProvider;
 import org.alfresco.repo.content.MimetypeMap;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
@@ -70,15 +42,8 @@ import org.alfresco.rest.api.tests.client.PublicApiClient;
 import org.alfresco.rest.api.tests.client.PublicApiClient.ExpectedPaging;
 import org.alfresco.rest.api.tests.client.PublicApiClient.Paging;
 import org.alfresco.rest.api.tests.client.PublicApiHttpClient.BinaryPayload;
-import org.alfresco.rest.api.tests.client.data.Association;
-import org.alfresco.rest.api.tests.client.data.ContentInfo;
-import org.alfresco.rest.api.tests.client.data.Document;
-import org.alfresco.rest.api.tests.client.data.Folder;
-import org.alfresco.rest.api.tests.client.data.Node;
-import org.alfresco.rest.api.tests.client.data.PathInfo;
+import org.alfresco.rest.api.tests.client.data.*;
 import org.alfresco.rest.api.tests.client.data.PathInfo.ElementInfo;
-import org.alfresco.rest.api.tests.client.data.SiteRole;
-import org.alfresco.rest.api.tests.client.data.UserInfo;
 import org.alfresco.rest.api.tests.util.MultiPartBuilder;
 import org.alfresco.rest.api.tests.util.MultiPartBuilder.FileData;
 import org.alfresco.rest.api.tests.util.MultiPartBuilder.MultiPartRequest;
@@ -86,11 +51,7 @@ import org.alfresco.rest.api.tests.util.RestApiUtil;
 import org.alfresco.service.cmr.lock.LockType;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.StoreRef;
-import org.alfresco.service.cmr.security.AccessPermission;
-import org.alfresco.service.cmr.security.AccessStatus;
-import org.alfresco.service.cmr.security.AuthorityService;
-import org.alfresco.service.cmr.security.AuthorityType;
-import org.alfresco.service.cmr.security.PermissionService;
+import org.alfresco.service.cmr.security.*;
 import org.alfresco.service.cmr.site.SiteVisibility;
 import org.alfresco.util.GUID;
 import org.alfresco.util.TempFileProvider;
@@ -99,6 +60,19 @@ import org.json.simple.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
+
+import static org.alfresco.rest.api.tests.util.RestApiUtil.parsePaging;
+import static org.alfresco.rest.api.tests.util.RestApiUtil.toJsonAsStringNonNull;
+import static org.junit.Assert.*;
 
 /**
  * V1 REST API tests for Nodes (files, folders and custom node types)
@@ -5471,7 +5445,60 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
         assertNotNull(propUpdateResponse.get("custom:locations"));
         assertTrue(((ArrayList) (propUpdateResponse.get("custom:locations"))).size() == 1);
     }
-    
+
+    @Test public void testAuditableProperties() throws Exception
+    {
+        setRequestContext(user1);
+        String myNodeId = getMyNodeId();
+        UserInfo expectedUser = new UserInfo(user1);
+
+        String auditCreator = "unacceptable creator";
+        String auditCreated = "unacceptable created";
+        String auditModifier = "unacceptable modifier";
+        String auditModified = "unacceptable modified";
+        String auditAccessed = "unacceptable accessed";
+
+        Map<String, Object> givenProperties = new HashMap<>();
+        givenProperties.put("cm:creator", auditCreator);
+        givenProperties.put("cm:created", auditCreated);
+        givenProperties.put("cm:modifier", auditModifier);
+        givenProperties.put("cm:modified", auditModified);
+        givenProperties.put("cm:accessed", auditAccessed);
+
+        //create folder node
+        Node createdFolder = createNode(myNodeId, "folderName", TYPE_CM_FOLDER, givenProperties);
+        assertEquals(createdFolder.getCreatedByUser().getId(), expectedUser.getId());
+        validateAuditableProperties(givenProperties, createdFolder);
+
+        //update folder node
+        givenProperties.put("cm:title", "newTitle");
+        createdFolder.setProperties(givenProperties);
+
+        HttpResponse response = put(URL_NODES, createdFolder.getId(), toJsonAsStringNonNull(createdFolder), null, 200);
+        Node updateFolderResponse = RestApiUtil.parseRestApiEntry(response.getJsonResponse(), Node.class);
+        validateAuditableProperties(givenProperties, updateFolderResponse);
+
+        // create content node
+        Node createdContent = createNode(myNodeId, "content name", TYPE_CM_CONTENT, givenProperties);
+        validateAuditableProperties(givenProperties, createdContent);
+
+        //update content node
+        givenProperties.put("cm:title", "newTitle");
+        createdContent.setProperties(givenProperties);
+
+        response = put(getNodeContentUrl(createdContent.getId()), createdContent.getId(), toJsonAsStringNonNull(createdContent), null, 200);
+        Node updateContentResponse = RestApiUtil.parseRestApiEntry(response.getJsonResponse(), Node.class);
+        validateAuditableProperties(givenProperties, updateContentResponse);
+    }
+
+    private void validateAuditableProperties(Map<String, Object> givenProperties, Node node)
+    {
+        assertFalse(givenProperties.get("cm:creator").equals(node.getCreatedByUser().getDisplayName()));
+        assertFalse(givenProperties.get("cm:created").equals(node.getCreatedAt().getTime()));
+        assertFalse(givenProperties.get("cm:modifier").equals(node.getModifiedAt().getTime()));
+        assertFalse(givenProperties.get("cm:modified").equals(node.getModifiedByUser().getDisplayName()));
+    }
+
     private String getDataDictionaryNodeId() throws Exception
     {
         Map params = new HashMap<>();

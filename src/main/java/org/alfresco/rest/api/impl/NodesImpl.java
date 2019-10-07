@@ -56,6 +56,7 @@ import org.alfresco.repo.action.executer.ContentMetadataExtracter;
 import org.alfresco.repo.activities.ActivityType;
 import org.alfresco.repo.content.ContentLimitViolationException;
 import org.alfresco.repo.content.MimetypeMap;
+import org.alfresco.repo.domain.node.AuditablePropertiesEntity;
 import org.alfresco.repo.lock.mem.Lifetime;
 import org.alfresco.repo.model.Repository;
 import org.alfresco.repo.model.filefolder.FileFolderServiceImpl;
@@ -1169,7 +1170,7 @@ public class NodesImpl implements Nodes
                 throw new InvalidArgumentException("Unknown property: " + propName);
             }
         }
-
+        nodeProps.keySet().removeAll(AuditablePropertiesEntity.getAuditablePropertyQNames());
         return nodeProps;
     }
     
