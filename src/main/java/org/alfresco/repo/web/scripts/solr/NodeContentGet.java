@@ -68,13 +68,14 @@ public class NodeContentGet extends StreamContent
     private static final Log logger = LogFactory.getLog(NodeContentGet.class);
 
     /**
-     * format definied by RFC 822, see http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3 
+     * format definied by RFC 822, see http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3
      */
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE', 'dd' 'MMM' 'yyyy' 'HH:mm:ss' 'Z", Locale.US);
 
     private NodeDAO nodeDAO;
     private NodeService nodeService;
     private ContentService contentService;
+    private LocalTransformServiceRegistry localTransformServiceRegistry;
 
     public void setNodeDAO(NodeDAO nodeDAO)
     {
@@ -90,7 +91,12 @@ public class NodeContentGet extends StreamContent
     {
         this.contentService = contentService;
     }
-    
+
+    public void setLocalTransformServiceRegistry(LocalTransformServiceRegistry localTransformServiceRegistry)
+    {
+        this.localTransformServiceRegistry = localTransformServiceRegistry;
+    }
+
     /**
      *
      * @param req WebScriptRequest
@@ -125,13 +131,13 @@ public class NodeContentGet extends StreamContent
             // If the node does not exists we treat it as if it has no content
             // We could be trying to update the content of a node in the index that has been deleted.
             res.setStatus(HttpStatus.SC_NO_CONTENT);
-            return;            
+            return;
         }
         NodeRef nodeRef = pair.getSecond();
 
         // check If-Modified-Since header and set Last-Modified header as appropriate
         Date modified = (Date)nodeService.getProperty(nodeRef, ContentModel.PROP_MODIFIED);
-        // May be null - if so treat as just changed 
+        // May be null - if so treat as just changed
         if(modified == null)
         {
             modified = new Date();
@@ -151,7 +157,7 @@ public class NodeContentGet extends StreamContent
                     logger.warn("Browser sent badly-formatted If-Modified-Since header: " + modifiedSinceStr);
                 }
             }
-            
+
             if (modifiedSince > 0L)
             {
                 // round the date to the ignore millisecond value which is not supplied by header
@@ -168,10 +174,9 @@ public class NodeContentGet extends StreamContent
         if(reader == null)
         {
             res.setStatus(HttpStatus.SC_NO_CONTENT);
-            return;            
+            return;
         }
-        
-        LocalTransformServiceRegistry localTransformServiceRegistry = contentService.getLocalTransformServiceRegistry();
+
         String sourceMimetype = reader.getMimetype();
         long sourceSize = reader.getSize();
         Map<String, String> options = Collections.emptyMap();
