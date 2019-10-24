@@ -171,6 +171,7 @@
                 <entry key="org.alfresco.repo.security.authentication.AuthenticationException" value="#{T(org.springframework.extensions.webscripts.Status).STATUS_UNAUTHORIZED}" />
                 <entry key="org.springframework.http.InvalidMediaTypeException" value="#{T(org.springframework.extensions.webscripts.Status).STATUS_UNSUPPORTED_MEDIA_TYPE}" />
                 <entry key="org.alfresco.rest.framework.core.exceptions.ServiceUnavailableException" value="503" />
+                <entry key="org.alfresco.service.cmr.dictionary.InvalidTypeException" value="409" />
             </map>
         </property>
     </bean>
@@ -328,7 +329,16 @@
             </list>
         </property>
     </bean>
-    
+
+    <bean id="discussionsActivitySummaryProcessor" class="org.alfresco.rest.api.impl.activities.DiscussionsActivitySummaryProcessor">
+        <property name="registry" ref="activitySummaryParser" />
+        <property name="eventTypes">
+            <list>
+                <value>org.alfresco.discussions.reply-created</value>
+            </list>
+        </property>
+    </bean>
+
     <bean id="subscriptionsActivitySummaryProcessor" class="org.alfresco.rest.api.impl.activities.SubscriptionsActivitySummaryProcessor">
         <property name="registry" ref="activitySummaryParser" />
         <property name="eventTypes">

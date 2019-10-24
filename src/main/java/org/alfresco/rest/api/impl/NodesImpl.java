@@ -56,6 +56,7 @@ import org.alfresco.repo.action.executer.ContentMetadataExtracter;
 import org.alfresco.repo.activities.ActivityType;
 import org.alfresco.repo.content.ContentLimitViolationException;
 import org.alfresco.repo.content.MimetypeMap;
+import org.alfresco.repo.domain.node.AuditablePropertiesEntity;
 import org.alfresco.repo.lock.mem.Lifetime;
 import org.alfresco.repo.model.Repository;
 import org.alfresco.repo.model.filefolder.FileFolderServiceImpl;
@@ -1169,7 +1170,6 @@ public class NodesImpl implements Nodes
                 throw new InvalidArgumentException("Unknown property: " + propName);
             }
         }
-
         return nodeProps;
     }
     
@@ -1753,6 +1753,8 @@ public class NodesImpl implements Nodes
         {
             throw new InvalidArgumentException("Unexpected id when trying to create a new node: "+nodeInfo.getNodeRef().getId());
         }
+        validateAspects(nodeInfo.getAspectNames(), EXCLUDED_NS, EXCLUDED_ASPECTS);
+        validateProperties(nodeInfo.getProperties(), EXCLUDED_NS,  Arrays.asList());
 
         // check that requested parent node exists and it's type is a (sub-)type of folder
         NodeRef parentNodeRef = validateOrLookupNode(parentFolderNodeId, null);
@@ -2244,6 +2246,9 @@ public class NodesImpl implements Nodes
     
     protected NodeRef updateNodeImpl(String nodeId, Node nodeInfo, Parameters parameters)
     {
+        validateAspects(nodeInfo.getAspectNames(), EXCLUDED_NS, EXCLUDED_ASPECTS);
+        validateProperties(nodeInfo.getProperties(), EXCLUDED_NS,  Arrays.asList());
+
         final NodeRef nodeRef = validateOrLookupNode(nodeId, null);
 
         QName nodeTypeQName = getNodeType(nodeRef);
@@ -2444,26 +2449,21 @@ public class NodesImpl implements Nodes
     @Override
     public Node moveOrCopyNode(String sourceNodeId, String targetParentId, String name, Parameters parameters, boolean isCopy)
     {
-        FileInfo fi = retryingTransactionHelper.doInTransaction(() -> {
-            if ((sourceNodeId == null) || (sourceNodeId.isEmpty()))
-            {
-                throw new InvalidArgumentException("Missing sourceNodeId");
-            }
-    
-            if ((targetParentId == null) || (targetParentId.isEmpty()))
-            {
-                throw new InvalidArgumentException("Missing targetParentId");
-            }
-    
-            final NodeRef parentNodeRef = validateOrLookupNode(targetParentId, null);
-            final NodeRef sourceNodeRef = validateOrLookupNode(sourceNodeId, null);
-    
-            return moveOrCopyImpl(sourceNodeRef, parentNodeRef, name, isCopy);
-        }, false, true);
+        if ((sourceNodeId == null) || (sourceNodeId.isEmpty()))
+        {
+            throw new InvalidArgumentException("Missing sourceNodeId");
+        }
 
-        return retryingTransactionHelper.doInTransaction(() -> {
-            return getFolderOrDocument(fi.getNodeRef().getId(), parameters);
-        }, false, false);
+        if ((targetParentId == null) || (targetParentId.isEmpty()))
+        {
+            throw new InvalidArgumentException("Missing targetParentId");
+        }
+
+        final NodeRef parentNodeRef = validateOrLookupNode(targetParentId, null);
+        final NodeRef sourceNodeRef = validateOrLookupNode(sourceNodeId, null);
+
+        FileInfo fi = moveOrCopyImpl(sourceNodeRef, parentNodeRef, name, isCopy);
+        return getFolderOrDocument(fi.getNodeRef().getId(), parameters);
     }
     
     public void updateCustomAspects(NodeRef nodeRef, List<String> aspectNames, List<QName> excludedAspects)
@@ -2951,6 +2951,7 @@ public class NodesImpl implements Nodes
         final QName assocTypeQName = ContentModel.ASSOC_CONTAINS;
         final Set<String> renditions = getRequestedRenditions(renditionNames);
 
+        validateProperties(qnameStrProps, EXCLUDED_NS,  Arrays.asList());
         try
         {
             // Map the given properties, if any.
@@ -3265,28 +3266,22 @@ public class NodesImpl implements Nodes
     @Override
     public Node lock(String nodeId, LockInfo lockInfo, Parameters parameters)
     {
-        retryingTransactionHelper.doInTransaction(() -> {
-            NodeRef nodeRef = validateOrLookupNode(nodeId, null);
+        NodeRef nodeRef = validateOrLookupNode(nodeId, null);
 
-            if (isSpecialNode(nodeRef, getNodeType(nodeRef)))
-            {
-                throw new PermissionDeniedException("Current user doesn't have permission to lock node " + nodeId);
-            }
+        if (isSpecialNode(nodeRef, getNodeType(nodeRef)))
+        {
+            throw new PermissionDeniedException("Current user doesn't have permission to lock node " + nodeId);
+        }
 
-            if (!nodeMatches(nodeRef, Collections.singleton(ContentModel.TYPE_CONTENT), null, false))
-            {
-                throw new InvalidArgumentException("Node of type cm:content or a subtype is expected: " + nodeId);
-            }
+        if (!nodeMatches(nodeRef, Collections.singleton(ContentModel.TYPE_CONTENT), null, false))
+        {
+            throw new InvalidArgumentException("Node of type cm:content or a subtype is expected: " + nodeId);
+        }
 
-            LockInfo validatedLockInfo = validateLockInformation(lockInfo);
-            lockService.lock(nodeRef, validatedLockInfo.getMappedType(), validatedLockInfo.getTimeToExpire(), validatedLockInfo.getLifetime());
+        LockInfo validatedLockInfo = validateLockInformation(lockInfo);
+        lockService.lock(nodeRef, validatedLockInfo.getMappedType(), validatedLockInfo.getTimeToExpire(), validatedLockInfo.getLifetime());
 
-            return null;
-        }, false, true);
-
-        return retryingTransactionHelper.doInTransaction(() -> {
-            return getFolderOrDocument(nodeId, parameters);
-        }, false, false);
+        return getFolderOrDocument(nodeId, parameters);
     }
 
     private LockInfo validateLockInformation(LockInfo lockInfo)
@@ -3310,25 +3305,19 @@ public class NodesImpl implements Nodes
     @Override
     public Node unlock(String nodeId, Parameters parameters)
     {
-        retryingTransactionHelper.doInTransaction(() -> {
-            NodeRef nodeRef = validateOrLookupNode(nodeId, null);
+        NodeRef nodeRef = validateOrLookupNode(nodeId, null);
 
-            if (isSpecialNode(nodeRef, getNodeType(nodeRef)))
-            {
-                throw new PermissionDeniedException("Current user doesn't have permission to unlock node " + nodeId);
-            }
-            if (!lockService.isLocked(nodeRef))
-            {
-                throw new IntegrityException("Can't unlock node " + nodeId + " because it isn't locked", null);
-            }
+        if (isSpecialNode(nodeRef, getNodeType(nodeRef)))
+        {
+            throw new PermissionDeniedException("Current user doesn't have permission to unlock node " + nodeId);
+        }
+        if (!lockService.isLocked(nodeRef))
+        {
+            throw new IntegrityException("Can't unlock node " + nodeId + " because it isn't locked", null);
+        }
 
-            lockService.unlock(nodeRef);
-            return null;
-        }, false, true);
-
-        return retryingTransactionHelper.doInTransaction(() -> {
-            return getFolderOrDocument(nodeId, parameters);
-        }, false, false);
+        lockService.unlock(nodeRef);
+        return getFolderOrDocument(nodeId, parameters);
     }
 
     /**
@@ -3387,7 +3376,42 @@ public class NodesImpl implements Nodes
         }
         return false;
     }
-    
+
+    public void validateAspects(List<String> aspectNames, List<String> excludedNS, List<QName> excludedAspects)
+    {
+        if (aspectNames != null && excludedNS != null && excludedAspects != null)
+        {
+            Set<QName> aspects = mapToNodeAspects(aspectNames);
+            aspects.forEach(aspect -> {
+                if (excludedNS != null && excludedNS.contains(aspect.getNamespaceURI()))
+                {
+                    throw new IllegalArgumentException("NameSpace cannot be used by API: " + aspect.toPrefixString());
+                }
+                if (excludedAspects != null && excludedAspects.contains(aspect))
+                {
+                    throw new IllegalArgumentException("Cannot be used by API: " + aspect.toPrefixString());
+                }
+            });
+        }
+    }
+
+    public void validateProperties(Map<String, Object> properties, List<String> excludedNS, List<QName> excludedProperties)
+    {
+        if (properties != null)
+        {
+            Map<QName, Serializable> nodeProps = mapToNodeProperties(properties);
+            nodeProps.keySet().forEach(property -> {
+                if ((excludedNS != null && excludedNS.contains(property.getNamespaceURI())))
+                {
+                    throw new IllegalArgumentException("NameSpace cannot be used by API: " + property.toPrefixString());
+                }
+                if ((excludedProperties != null && excludedProperties.contains(property)) || AuditablePropertiesEntity.getAuditablePropertyQNames().contains(property))
+                {
+                    throw new IllegalArgumentException("Cannot be used by API: " + property.toPrefixString());
+                }
+            });
+        }
+    }
 
     /**
      * @author Jamal Kaabi-Mofrad

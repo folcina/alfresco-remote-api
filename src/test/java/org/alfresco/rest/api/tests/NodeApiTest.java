@@ -92,6 +92,7 @@ import org.alfresco.service.cmr.security.AuthorityService;
 import org.alfresco.service.cmr.security.AuthorityType;
 import org.alfresco.service.cmr.security.PermissionService;
 import org.alfresco.service.cmr.site.SiteVisibility;
+import org.alfresco.service.namespace.NamespaceService;
 import org.alfresco.util.GUID;
 import org.alfresco.util.TempFileProvider;
 import org.apache.commons.collections.map.MultiValueMap;
@@ -4431,6 +4432,76 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
     }
 
     /**
+     * Tests update of content after owner of the document is deleted
+     * <p>PUT:</p>
+     * {@literal <host>:<port>/alfresco/api/-default-/public/alfresco/versions/1/nodes/<nodeId>/content}
+     */
+    @Test
+    public void testUploadContentDeletedOwner() throws Exception
+    {
+        // Create person2delete
+        String personToDelete = createUser("usertodelete-" + RUNID, "userdelPassword", networkOne);
+
+        // PersonToDelete creates a site and adds user1 as a site collab
+        setRequestContext(personToDelete);
+        String site1Title = "site-testUploadContentDeadUser_DocLib-" + RUNID;
+        String site1Id = createSite(site1Title, SiteVisibility.PUBLIC).getId();
+        String site1DocLibNodeId = getSiteContainerNodeId(site1Id, "documentLibrary");
+
+        addSiteMember(site1Id, user1, SiteRole.SiteCollaborator);
+
+        // PersonToDelete creates a file within DL
+        Document deadDoc = createTextFile(site1DocLibNodeId, "testdeaddoc.txt", "The quick brown fox jumps over the lazy dog 1.");
+        final String deadDocUrl = getNodeContentUrl(deadDoc.getId());
+
+        // PersonToDelete updates the file
+        String content = "Soft you a word or two before you go... I took by the throat the circumcised dog, And smote him, thus.";
+        String docName = "goodbye-world.txt";
+        Map params_doc = new HashMap<>();
+        params_doc.put(Nodes.PARAM_NAME, docName);
+        deadDoc = updateFileWithContent(deadDoc.getId(), content, params_doc, 200);
+        assertEquals("person2delete cannot update document", docName, deadDoc.getName());
+
+        // Download the file and confirm its contents on person2delete
+        HttpResponse response = getSingle(deadDocUrl, personToDelete, null, 200);
+        assertEquals("person2delete cannot view document", content, response.getResponse());
+
+        // Download the file and confirm its contents on user1
+        response = getSingle(deadDocUrl, user1, null, 200);
+        assertEquals("user1 cannot view document", content, response.getResponse());
+
+        // PersonToDelete is deleted
+        transactionHelper.doInTransaction(() -> {
+            deleteUser(personToDelete, networkOne);
+            return null;
+        });
+
+        // User1 updates the file
+        setRequestContext(user1);
+        content = "This did I fear, but thought he had no weapon; For he was great of heart.";
+        updateFileWithContent(deadDoc.getId(), content, null, 200);
+
+        // Download the file and confirm its contents (ensure rollback didn't happen)
+        response = getSingle(deadDocUrl, user1, null, 200);
+        assertEquals("user1 cannot update after owner is deleted", content, response.getResponse());
+    }
+
+    private Document updateFileWithContent(String docId, String content, Map<String, String> params, int expectedStatus) throws Exception
+    {
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(content.getBytes());
+        File txtFile = TempFileProvider.createTempFile(inputStream, getClass().getSimpleName(), ".txt");
+
+        BinaryPayload payload = new BinaryPayload(txtFile);
+
+        HttpResponse response = putBinary(getNodeContentUrl(docId), payload, null, params, expectedStatus);
+        if (expectedStatus != 200)
+        {
+            return null;
+        }
+        return RestApiUtil.parseRestApiEntry(response.getJsonResponse(), Document.class);
+    }
+
+    /**
      * Creates authority context
      *
      * @param user
@@ -5471,7 +5542,66 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
         assertNotNull(propUpdateResponse.get("custom:locations"));
         assertTrue(((ArrayList) (propUpdateResponse.get("custom:locations"))).size() == 1);
     }
-    
+
+    @Test public void testAuditableProperties() throws Exception
+    {
+        setRequestContext(user1);
+        String myNodeId = getMyNodeId();
+
+        UserInfo expectedUser = new UserInfo(user1);
+
+        String auditCreator = "unacceptable creator";
+        String auditCreated = "unacceptable created";
+        String auditModifier = "unacceptable modifier";
+        String auditModified = "unacceptable modified";
+        String auditAccessed = "unacceptable accessed";
+
+        Map<String, Object> auditableProperties = new HashMap<>();
+        auditableProperties.put("cm:creator", auditCreator);
+        auditableProperties.put("cm:created", auditCreated);
+        auditableProperties.put("cm:modifier", auditModifier);
+        auditableProperties.put("cm:modified", auditModified);
+        auditableProperties.put("cm:accessed", auditAccessed);
+
+        Map<String, Object> systemProperties = new HashMap<>();
+        systemProperties.put("sys:node:uuid", "someRandomID");
+
+        //create folder node
+        Node node = new Node();
+        node.setName("folderName");
+        node.setNodeType(TYPE_CM_FOLDER);
+        node.setProperties(auditableProperties);
+        HttpResponse response = post(getNodeChildrenUrl(myNodeId), RestApiUtil.toJsonAsStringNonNull(node), 400);
+
+        node.setProperties(systemProperties);
+        post(getNodeChildrenUrl(myNodeId), RestApiUtil.toJsonAsStringNonNull(node), 400);
+
+        node.setProperties(new HashMap<>());
+        response = post(getNodeChildrenUrl(myNodeId), RestApiUtil.toJsonAsStringNonNull(node), 201);
+        Node createdFolder =  RestApiUtil.parseRestApiEntry(response.getJsonResponse(), Node.class);
+        assertEquals(createdFolder.getCreatedByUser().getId(), expectedUser.getId());
+        validateAuditableProperties(auditableProperties, createdFolder);
+
+        //update folder node
+        createdFolder.setProperties(auditableProperties);
+        put(URL_NODES, createdFolder.getId(), toJsonAsStringNonNull(createdFolder), null, 400);
+
+        Map<String, Object> otherProperties = new HashMap<>();
+        otherProperties.put("cm:title", "newTitle");
+        createdFolder.setProperties(otherProperties);
+        response = put(URL_NODES, createdFolder.getId(), toJsonAsStringNonNull(createdFolder), null, 200);
+        Node updateFolderResponse = RestApiUtil.parseRestApiEntry(response.getJsonResponse(), Node.class);
+        validateAuditableProperties(auditableProperties, updateFolderResponse);
+    }
+
+    private void validateAuditableProperties(Map<String, Object> givenProperties, Node node)
+    {
+        assertFalse(givenProperties.get("cm:creator").equals(node.getCreatedByUser().getDisplayName()));
+        assertFalse(givenProperties.get("cm:created").equals(node.getCreatedAt().getTime()));
+        assertFalse(givenProperties.get("cm:modifier").equals(node.getModifiedAt().getTime()));
+        assertFalse(givenProperties.get("cm:modified").equals(node.getModifiedByUser().getDisplayName()));
+    }
+
     private String getDataDictionaryNodeId() throws Exception
     {
         Map params = new HashMap<>();
