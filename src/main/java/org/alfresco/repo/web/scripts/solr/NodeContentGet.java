@@ -27,8 +27,8 @@ package org.alfresco.repo.web.scripts.solr;
 
 import org.alfresco.model.ContentModel;
 import org.alfresco.repo.content.MimetypeMap;
-import org.alfresco.repo.content.transform.LocalTransformServiceRegistry;
 import org.alfresco.repo.domain.node.NodeDAO;
+import org.alfresco.repo.rendition2.SynchronousTransformClient;
 import org.alfresco.repo.web.scripts.content.StreamContent;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
@@ -75,7 +75,7 @@ public class NodeContentGet extends StreamContent
     private NodeDAO nodeDAO;
     private NodeService nodeService;
     private ContentService contentService;
-    private LocalTransformServiceRegistry localTransformServiceRegistry;
+    private SynchronousTransformClient synchronousTransformClient;
 
     public void setNodeDAO(NodeDAO nodeDAO)
     {
@@ -92,9 +92,9 @@ public class NodeContentGet extends StreamContent
         this.contentService = contentService;
     }
 
-    public void setLocalTransformServiceRegistry(LocalTransformServiceRegistry localTransformServiceRegistry)
+    public void setSynchronousTransformClient(SynchronousTransformClient synchronousTransformClient)
     {
-        this.localTransformServiceRegistry = localTransformServiceRegistry;
+        this.synchronousTransformClient = synchronousTransformClient;
     }
 
     /**
@@ -177,10 +177,9 @@ public class NodeContentGet extends StreamContent
             return;
         }
 
-        String sourceMimetype = reader.getMimetype();
-        long sourceSize = reader.getSize();
         Map<String, String> options = Collections.emptyMap();
-        if (!localTransformServiceRegistry.isSupported(sourceMimetype, sourceSize, MimetypeMap.MIMETYPE_TEXT_PLAIN, options, "SolrIndexer"))
+        if (!synchronousTransformClient.isSupported(nodeRef, MimetypeMap.MIMETYPE_TEXT_PLAIN, options,
+                "SolrIndexer", nodeService))
         {
             res.setHeader(TRANSFORM_STATUS_HEADER, "noTransform");
             res.setStatus(HttpStatus.SC_NO_CONTENT);
@@ -190,12 +189,12 @@ public class NodeContentGet extends StreamContent
         // Perform transformation catering for mimetype AND encoding
         ContentWriter writer = contentService.getTempWriter();
         writer.setMimetype(MimetypeMap.MIMETYPE_TEXT_PLAIN);
-        writer.setEncoding("UTF-8");                            // Expect transformers to produce UTF-8
+        writer.setEncoding("UTF-8"); // Expect transformers to produce UTF-8
 
         try
         {
             long start = System.currentTimeMillis();
-            localTransformServiceRegistry.transform(reader, writer, options, "SolrIndexer", nodeRef);
+            synchronousTransformClient.transform(reader, writer, options, "SolrIndexer", nodeRef);
             long transformDuration = System.currentTimeMillis() - start;
             res.setHeader(TRANSFORM_DURATION_HEADER, String.valueOf(transformDuration));
         }
