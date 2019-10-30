@@ -85,6 +85,8 @@ import org.alfresco.rest.api.tests.util.MultiPartBuilder.MultiPartRequest;
 import org.alfresco.rest.api.tests.util.RestApiUtil;
 import org.alfresco.service.cmr.lock.LockType;
 import org.alfresco.service.cmr.repository.NodeRef;
+import org.alfresco.service.cmr.repository.NodeService;
+import org.alfresco.service.cmr.repository.Path;
 import org.alfresco.service.cmr.repository.StoreRef;
 import org.alfresco.service.cmr.security.AccessPermission;
 import org.alfresco.service.cmr.security.AccessStatus;
@@ -93,6 +95,7 @@ import org.alfresco.service.cmr.security.AuthorityType;
 import org.alfresco.service.cmr.security.PermissionService;
 import org.alfresco.service.cmr.site.SiteVisibility;
 import org.alfresco.service.namespace.NamespaceService;
+import org.alfresco.service.namespace.QName;
 import org.alfresco.util.GUID;
 import org.alfresco.util.TempFileProvider;
 import org.apache.commons.collections.map.MultiValueMap;
@@ -126,6 +129,7 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
 
     protected PermissionService permissionService;
     protected AuthorityService authorityService;
+    private NodeService nodeService;
 
     private String rootGroupName = null;
     private String groupA = null;
@@ -138,6 +142,8 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
 
         permissionService = applicationContext.getBean("permissionService", PermissionService.class);
         authorityService = (AuthorityService) applicationContext.getBean("AuthorityService");
+        nodeService = applicationContext.getBean("NodeService", NodeService.class);
+        AuthenticationUtil.pushAuthentication();
     }
     
     @After
@@ -5600,6 +5606,49 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
         assertFalse(givenProperties.get("cm:created").equals(node.getCreatedAt().getTime()));
         assertFalse(givenProperties.get("cm:modifier").equals(node.getModifiedAt().getTime()));
         assertFalse(givenProperties.get("cm:modified").equals(node.getModifiedByUser().getDisplayName()));
+    }
+
+    @Test public void testPrimaryPath() throws Exception
+    {
+        setRequestContext(user1);
+        String myNodeId = getMyNodeId();
+        // /Company Home/User Homes/user<timestamp>/folder_A
+        String folderAName = "folder_A";
+        Folder folderA = createFolder(myNodeId, folderAName);
+
+        AuthenticationUtil.setFullyAuthenticatedUser(user1);
+
+        // /Company Home/User Homes/user<timestamp>/folder_A/folder_B
+        String folderBName = "folder_B";
+        Folder folderB = createFolder(folderA.getId(), folderBName);
+        NodeRef folderANodeRef = new NodeRef(StoreRef.STORE_REF_WORKSPACE_SPACESSTORE, folderA.getId());
+        Path folderAPath = nodeService.getPath(folderANodeRef);
+        Path.ChildAssocElement pathElement = (Path.ChildAssocElement) folderAPath.last();
+        String qNameLocalName = pathElement.getRef().getQName().getLocalName();
+        assertTrue(folderAName.equals(qNameLocalName));
+
+        // update node
+        // /Company Home/User Homes/user<timestamp>/folder_A01
+        folderA.setName("folder_A01");
+        put(URL_NODES, folderA.getId(), toJsonAsStringNonNull(folderA), null, 200);
+        folderAPath = nodeService.getPath(folderANodeRef);
+        pathElement = (Path.ChildAssocElement) folderAPath.last();
+        qNameLocalName = pathElement.getRef().getQName().getLocalName();
+        assertFalse(folderAName.equals(qNameLocalName));
+
+        folderA.setName("folder_A02");
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("cm:name", "folder_A03");
+        folderA.setProperties(properties);
+        put(URL_NODES, folderA.getId(), toJsonAsStringNonNull(folderA), null, 200);
+
+        folderAPath = nodeService.getPath(folderANodeRef);
+        pathElement = (Path.ChildAssocElement) folderAPath.last();
+        qNameLocalName = pathElement.getRef().getQName().getLocalName();
+
+        assertFalse(folderAName.equals(qNameLocalName));
+        assertFalse("folder_A03".equals(qNameLocalName));
+        assertTrue("folder_A02".equals(qNameLocalName));
     }
 
     private String getDataDictionaryNodeId() throws Exception
