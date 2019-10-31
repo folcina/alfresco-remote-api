@@ -143,7 +143,6 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
         permissionService = applicationContext.getBean("permissionService", PermissionService.class);
         authorityService = (AuthorityService) applicationContext.getBean("AuthorityService");
         nodeService = applicationContext.getBean("NodeService", NodeService.class);
-        AuthenticationUtil.pushAuthentication();
     }
     
     @After
@@ -5611,44 +5610,49 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
     @Test public void testPrimaryPath() throws Exception
     {
         setRequestContext(user1);
-        String myNodeId = getMyNodeId();
-        // /Company Home/User Homes/user<timestamp>/folder_A
-        String folderAName = "folder_A";
-        Folder folderA = createFolder(myNodeId, folderAName);
-
         AuthenticationUtil.setFullyAuthenticatedUser(user1);
+        String myNodeId = getMyNodeId();
+
+        String nameA = "folder_A";
+        String nameA01 = "folder_A01";
+        String nameA02 = "folder_A02";
+        String nameA03 = "folder_A03";
+        String nameB = "folder_B";
 
         // /Company Home/User Homes/user<timestamp>/folder_A/folder_B
-        String folderBName = "folder_B";
-        Folder folderB = createFolder(folderA.getId(), folderBName);
+        Folder folderA = createFolder(myNodeId, nameA);
+        Folder folderB = createFolder(folderA.getId(), nameB);
         NodeRef folderANodeRef = new NodeRef(StoreRef.STORE_REF_WORKSPACE_SPACESSTORE, folderA.getId());
+        NodeRef folderBNodeRef = new NodeRef(StoreRef.STORE_REF_WORKSPACE_SPACESSTORE, folderB.getId());
+
+        folderA.setName(nameA01);
+        put(URL_NODES, folderA.getId(), toJsonAsStringNonNull(folderA), null, 200);
         Path folderAPath = nodeService.getPath(folderANodeRef);
         Path.ChildAssocElement pathElement = (Path.ChildAssocElement) folderAPath.last();
-        String qNameLocalName = pathElement.getRef().getQName().getLocalName();
-        assertTrue(folderAName.equals(qNameLocalName));
+        String localNameForFolderA = pathElement.getRef().getQName().getLocalName();
+        assertFalse(nameA.equals(localNameForFolderA));
 
-        // update node
-        // /Company Home/User Homes/user<timestamp>/folder_A01
-        folderA.setName("folder_A01");
-        put(URL_NODES, folderA.getId(), toJsonAsStringNonNull(folderA), null, 200);
-        folderAPath = nodeService.getPath(folderANodeRef);
-        pathElement = (Path.ChildAssocElement) folderAPath.last();
-        qNameLocalName = pathElement.getRef().getQName().getLocalName();
-        assertFalse(folderAName.equals(qNameLocalName));
-
-        folderA.setName("folder_A02");
+        folderA.setName(nameA02);
         Map<String, Object> properties = new HashMap<>();
-        properties.put("cm:name", "folder_A03");
+        properties.put("cm:name", nameA03);
         folderA.setProperties(properties);
         put(URL_NODES, folderA.getId(), toJsonAsStringNonNull(folderA), null, 200);
-
         folderAPath = nodeService.getPath(folderANodeRef);
         pathElement = (Path.ChildAssocElement) folderAPath.last();
-        qNameLocalName = pathElement.getRef().getQName().getLocalName();
+        localNameForFolderA = pathElement.getRef().getQName().getLocalName();
+        assertFalse(nameA.equals(localNameForFolderA));
+        assertFalse(nameA03.equals(localNameForFolderA));
+        assertTrue(nameA02.equals(localNameForFolderA));
 
-        assertFalse(folderAName.equals(qNameLocalName));
-        assertFalse("folder_A03".equals(qNameLocalName));
-        assertTrue("folder_A02".equals(qNameLocalName));
+        Path folderBPath = nodeService.getPath(folderBNodeRef);
+        if (folderBPath.size() > 3)
+        {
+            String expectedPath =  "/" + nameA02 + "/" + nameB;
+            Path.ChildAssocElement pathBLastElement = (Path.ChildAssocElement) folderBPath.last();
+            String folderBRetrievedPath =
+                    folderBPath.subPath(4, folderBPath.size() - 1).toDisplayPath(nodeService, permissionService) + "/" + pathBLastElement.getRef().getQName().getLocalName();
+            assertTrue(expectedPath.equals(folderBRetrievedPath));
+        }
     }
 
     private String getDataDictionaryNodeId() throws Exception

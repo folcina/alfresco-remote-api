@@ -2313,7 +2313,7 @@ public class NodesImpl implements Nodes
 
             try
             {
-                handleUpdateNodeName(props, nodeRef);
+                handleNodeRename(props, nodeRef);
                 // update node properties - note: null will unset the specified property
                 nodeService.addProperties(nodeRef, props);
             }
@@ -2328,7 +2328,7 @@ public class NodesImpl implements Nodes
         return nodeRef;
     }
 
-    private void handleUpdateNodeName(Map<QName, Serializable> props, NodeRef nodeRef)
+    private void handleNodeRename(Map<QName, Serializable> props, NodeRef nodeRef)
     {
         Serializable nameProp = props.get(ContentModel.PROP_NAME);
         if ((nameProp != null))
