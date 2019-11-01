@@ -5645,14 +5645,10 @@ public class NodeApiTest extends AbstractSingleNetworkSiteTest
         assertTrue(nameA02.equals(localNameForFolderA));
 
         Path folderBPath = nodeService.getPath(folderBNodeRef);
-        if (folderBPath.size() > 3)
-        {
-            String expectedPath =  "/" + nameA02 + "/" + nameB;
-            Path.ChildAssocElement pathBLastElement = (Path.ChildAssocElement) folderBPath.last();
-            String folderBRetrievedPath =
-                    folderBPath.subPath(4, folderBPath.size() - 1).toDisplayPath(nodeService, permissionService) + "/" + pathBLastElement.getRef().getQName().getLocalName();
-            assertTrue(expectedPath.equals(folderBRetrievedPath));
-        }
+        Path.ChildAssocElement pathBLastElement = (Path.ChildAssocElement) folderBPath.last();
+        String currentPath = folderBPath.toDisplayPath(nodeService, permissionService) + "/" + pathBLastElement.getRef().getQName().getLocalName();
+        String expectedPath = "/Company Home/User Homes/" + user1 + "/" + nameA02 + "/" + nameB;
+        assertTrue(currentPath.equals(expectedPath));
     }
 
     private String getDataDictionaryNodeId() throws Exception
