@@ -178,8 +178,8 @@ public class NodeContentGet extends StreamContent
         }
 
         Map<String, String> options = Collections.emptyMap();
-        if (!synchronousTransformClient.isSupported(nodeRef, MimetypeMap.MIMETYPE_TEXT_PLAIN, options,
-                "SolrIndexer", nodeService))
+        if (!synchronousTransformClient.isSupported(nodeService, nodeRef, MimetypeMap.MIMETYPE_TEXT_PLAIN, options,
+                "SolrIndexer"))
         {
             res.setHeader(TRANSFORM_STATUS_HEADER, "noTransform");
             res.setStatus(HttpStatus.SC_NO_CONTENT);

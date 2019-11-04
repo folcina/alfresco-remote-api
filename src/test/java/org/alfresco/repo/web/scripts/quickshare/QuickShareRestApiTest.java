@@ -192,9 +192,8 @@ public class QuickShareRestApiTest extends BaseWebScriptTest
             @Override
             public Void doWork() throws Exception
             {
-                if (synchronousTransformClient.isSupported(null, MimetypeMap.MIMETYPE_IMAGE_JPEG,
-                        -1, null,
-                        MimetypeMap.MIMETYPE_IMAGE_PNG, Collections.emptyMap(), null))
+                if (!synchronousTransformClient.isSupported(MimetypeMap.MIMETYPE_IMAGE_JPEG, -1, null, MimetypeMap.MIMETYPE_IMAGE_PNG, Collections.emptyMap(), null, null
+                ))
                 {
                     fail("Image transformer is not working.  Please check your image conversion command setup.");
                 }
