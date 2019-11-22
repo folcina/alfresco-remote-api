@@ -30,6 +30,7 @@ import org.alfresco.repo.content.MimetypeMap;
 import org.alfresco.repo.domain.node.NodeDAO;
 import org.alfresco.repo.rendition2.SynchronousTransformClient;
 import org.alfresco.repo.web.scripts.content.StreamContent;
+import org.alfresco.service.cmr.repository.ContentData;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
 import org.alfresco.service.cmr.repository.ContentService;
@@ -177,9 +178,19 @@ public class NodeContentGet extends StreamContent
             return;
         }
 
+
+        boolean supported = false;
+        ContentData contentData = (ContentData) nodeService.getProperty(nodeRef, ContentModel.PROP_CONTENT);
         Map<String, String> options = Collections.emptyMap();
-        if (!synchronousTransformClient.isSupported(nodeService, nodeRef, MimetypeMap.MIMETYPE_TEXT_PLAIN, options,
-                "SolrIndexer"))
+        if (contentData != null && contentData.getContentUrl() != null)
+        {
+            String sourceMimetype = contentData.getMimetype();
+            long sourceSizeInBytes = contentData.getSize();
+            String contentUrl = contentData.getContentUrl();
+            supported = synchronousTransformClient.isSupported(sourceMimetype, sourceSizeInBytes, contentUrl,
+                    MimetypeMap.MIMETYPE_TEXT_PLAIN, options,"SolrIndexer", nodeRef);
+        }
+        if (!supported)
         {
             res.setHeader(TRANSFORM_STATUS_HEADER, "noTransform");
             res.setStatus(HttpStatus.SC_NO_CONTENT);
